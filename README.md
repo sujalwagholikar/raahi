@@ -1,95 +1,105 @@
-# Raahi — connected mobility starter
+# FreshCart — premium grocery storefront
 
-Raahi is an original Rapido-inspired implementation, not an affiliated Rapido product. It includes a responsive operations console, customer and captain HTML portals, a Go HTTP API, a transactional PostgreSQL/Supabase schema and two native Kotlin Android application flavors.
+A responsive grocery storefront and staff dashboard built with semantic HTML, modular CSS, native JavaScript ES modules, TypeScript contracts, Rust Vercel Functions, and Supabase Postgres/Auth.
 
-**Release status: functional starter, not a production-ready transport service.** The hosted preview runs in simulation mode. The supplied Supabase project/public key are configured. The database migration, a Vercel backend deployment and operational integrations still need setup. Read `docs/RELEASE_STATUS.md` before using real accounts or rides.
+## Included
 
-## Open the web portals
+- `index.html` — animated storefront, search, category filters, sorting, product details, cart drawer, checkout, order confirmation, newsletter showcase.
+- `admin.html` — Supabase Auth sign-in, order stats, order status management, inventory/stock/price management.
+- `assets/css/` — separate base, reusable component, storefront, modal/cart/checkout, and admin styles.
+- `assets/js/` — separate configuration, product catalogue, API access, cart state, UI utilities, storefront entry point, admin entry point.
+- `src/ts/` — shared TypeScript contracts for product, cart, checkout, order, and admin API payloads.
+- `api/` + `src/lib.rs` — Rust serverless endpoints for health, product catalogue, order creation, admin orders and inventory.
+- `supabase/migrations/001_init.sql` — tables, indexes, Row Level Security, order RPC, stock handling, and starter catalogue.
 
-- `dist/index.html` / `dist/admin.html`: management console, approvals, ride management, reporting and audit view.
-- `dist/user.html`: customer bookings, ride status, start code, cancellation and safety alert recording.
-- `dist/rider.html`: captain availability, acceptance/rejection, arrival, start-code verification, completion, gross cash fares and one-time position sharing.
+## Supabase already configured
 
-Serve over HTTP instead of opening files with `file://`. Simulation records are stored in localStorage and shared between tabs on the same origin/browser. Simulation does not synchronize across devices or native applications. Live mode uses the shared database through the Go API.
+The supplied project URL and publishable key are integrated in `assets/js/config.js` and `.env.example`:
 
-Fonts: Manrope headings, Inter interface text, Roboto status labels. Google Fonts requires connectivity; local fallback fonts are provided.
+- URL: `https://ppbhckgibiwamftgnjgy.supabase.co`
+- Key type: `sb_publishable_...` (public/browser-safe, used with RLS)
 
-## Start locally
+A local `.env.local` is included for convenience and is Git/Vercel-upload ignored; configure the server variables in the Vercel dashboard as well. The public/publishable key is **not** an admin credential. The admin panel uses Supabase Auth session tokens, and Postgres RLS checks the `public.admin_users` allowlist. Do not add a Supabase secret/service-role key to browser files.
 
-Install Go 1.23.6+:
+## Set up Supabase (required for shared/real orders)
 
-```sh
-go test -race ./...
-go vet ./...
-go run ./cmd/server
-```
+1. Open the Supabase SQL Editor for project `ppbhckgibiwamftgnjgy`.
+2. Run all of `supabase/migrations/001_init.sql`. This creates the product catalogue, order tables, RLS policies and the `create_store_order(payload jsonb)` RPC.
+3. In Supabase **Authentication → Users**, create the staff account that should administer the store. Disable public staff sign-ups in Auth settings if the project will be used beyond a showcase.
+4. Copy the exact staff email into the allowlist using the SQL Editor (replace the email):
 
-Visit `http://localhost:8080`. The Go API uses the configured public Supabase defaults. Environment variables can override them. The UI starts in simulation mode until you switch it; live rides require the app migration and backend deployment.
+   ```sql
+   insert into public.admin_users (user_id, email)
+   select id, email from auth.users
+   where lower(email) = lower('admin@example.com')
+   on conflict (user_id) do update
+   set email = excluded.email, is_active = true;
+   ```
 
-## Connect the real database and authentication
+   Sign in at `/admin.html` using that account. A normal customer account is not an admin unless its UUID is in `admin_users` and active.
+5. Check Supabase **Project Settings → API Keys** to verify the provided publishable key belongs to the same project. Keep RLS enabled.
 
-1. Open the configured Supabase project and run `database/001_schema.sql` once in its SQL editor. Raahi tables/functions use the `raahi_` prefix and do not alter unrelated `public.profiles` objects or their permissions. The script is transactional; do not rerun it against an already installed Raahi schema.
-2. Enable email/password authentication, configure confirmation URLs and mail delivery. Register customer/captain accounts using their corresponding portals. Accounts created before this migration need explicit profile backfill.
-3. The supplied public connection is embedded in the Go defaults and `vercel.json`; optionally override it with `SUPABASE_URL` and `SUPABASE_ANON_KEY` in the Go process environment. The API forwards the signed-in user's bearer token to Supabase; RLS and RPC transactions authorize operations. **No service-role key is required for application traffic. Schema installation needs your Supabase SQL editor.**
-4. Supabase is already configured in the web and APKs. Set `apiBase` in `config/connection.json` to your deployed Go API origin and run `python scripts/sync-connection.py`. An empty value means same-origin API hosting on Vercel. Public publishable keys belong in the `apikey` header, not in a bearer token. The signed-in user token remains the bearer credential.
-5. Promote one verified account with the commented SQL at the bottom of the migration. Signup metadata cannot create administrators.
-6. Sign into the matching portal, switch to live mode, approve the captain with an administrator account, and go online.
-7. Create a customer booking, accept it as captain, arrive, show the customer's start code, verify it as captain, and complete the ride.
+### What order creation does
 
-If the web frontend is hosted on another origin, set `ALLOWED_ORIGINS` to a comma-separated list of exact HTTPS origins. Do not use wildcards. Native clients do not need CORS.
+The storefront sends product SKUs and quantities to `/api/orders`. Rust validates the request, then calls the database RPC. The RPC looks up live prices and stock inside Postgres, locks products, checks availability, calculates delivery (₹39 under ₹499; free from ₹499), creates the order and order-item rows, and decrements stock in one transaction. The browser cannot set a trusted total.
 
-## Deploy Go + HTML to Vercel
+Checkout currently offers **cash on delivery / demo checkout only**. No card, UPI, or other payment is charged. Add a verified payment provider before accepting prepaid orders.
 
-Import this repository into Vercel. Select **Other**, leave the build command empty, and use `dist` as the output directory. `api/index.go` exports the HTTP handler; `vercel.json` rewrites `/v1/*` to it. The two public Supabase values are prefilled in `vercel.json`. Rebuild/redeploy after changing connection settings.
+## Deploy to Vercel
 
-Verify `/v1/health`, then the authenticated end-to-end workflow above. The separate private Sites preview hosts static assets only; it does **not** run the Go API. A Vercel account/deployment was not created by this deliverable.
+1. Push this folder to a Git repository and import it into Vercel, or deploy with the Vercel CLI.
+2. In Vercel → Project → Settings → Environment Variables, set these for Development, Preview, and Production:
 
-Durable state lives in PostgreSQL, not Go globals or serverless memory. No WebSocket availability assumptions are required: the web UI polls every 5 seconds and the Android home screen every 7 seconds while visible. This is not guaranteed real-time or a measured scaling SLA.
+   ```dotenv
+   SUPABASE_URL=https://ppbhckgibiwamftgnjgy.supabase.co
+   SUPABASE_PUBLISHABLE_KEY=sb_publishable_fEQE4MyRW6Z-9-UeK69MWQ_ONdH6Wv6
+   ```
 
-## Native Android applications
+   These are server-side runtime settings for the Rust functions. The same public key is okay here; it does not bypass RLS. No privileged Supabase secret is needed by this starter.
+3. Redeploy after setting the environment variables.
+4. Visit `/api/health`. It should return `ok: true` and `supabaseConfigured: true`.
+5. Visit `/` for the storefront and `/admin.html` for the staff panel.
 
-Open `android/` in Android Studio, use JDK 17, SDK 35 and Gradle 8.9. Two flavors create separate package IDs:
+The official Vercel Rust Functions runtime is currently documented as beta; see Vercel's current Rust runtime guide before production use: https://vercel.com/docs/functions/runtimes/rust
 
-- `customerDebug`: `in.raahi.mobility.customer` — **Raahi**
-- `captainDebug`: `in.raahi.mobility.captain` — **Raahi Captain**
+## Run locally
 
-```sh
-cd android
-./gradlew :app:assembleCustomerDebug :app:assembleCaptainDebug \
-  -PAPI_BASE=https://YOUR-VERCEL-APP.vercel.app \
-  -PAUTH_URL=https://YOUR-PROJECT.supabase.co \
-  -PANON_KEY=YOUR_PUBLIC_ANON_KEY
-```
+Install Rust, Node.js, and the Vercel CLI, then:
 
-On Windows, use `gradlew.bat` instead of `./gradlew`.
-
-These are native Kotlin Activities and HTTP clients, not WebView wrappers. Maps open OpenStreetMap in the device browser. The captain app shares a recent cached position only when the user presses the location button and grants permission. It does not run a background tracking service. The supplied Supabase URL/public key are embedded in both APK flavors. Tokens stay in process memory and refresh while the app is running; users sign in again after process death. Customer trip start codes are fetched through an owner-only RPC.
-
-You can also set the HTTPS API origin, Supabase project URL and public anon key on the apps’ **Configure connection** screen. These public connection settings persist on the device; tokens do not. Android projects without configured endpoints deliberately refuse live network calls. Debug APKs, if included in `releases/`, are developer builds with Supabase preconfigured; use Configure connection to add your Go API URL after deployment. Release builds need your own signing key; keep keystores out of version control. A CI workflow is included to build both debug variants. No emulator/device testing has been performed.
-
-## Tests
-
-```sh
-go test -race ./...
-go vet ./...
+```bash
 npm install
-npm run check
-npm run test:database
+vercel dev
 ```
 
-The database tests use PGlite, a PostgreSQL runtime, with a small mock of Supabase's `auth.uid()` and auth-user trigger table. They cover the migration, customer-role restrictions, idempotent booking, captain approval, competing acceptance, row visibility, lifecycle transitions, invalid codes, SOS insertion, forbidden direct profile updates and admin audit access. They do not substitute for tests against your real Supabase tenant, PostgREST or production concurrency/load tests.
+Open the local URL printed by Vercel. `vercel dev` is recommended because it runs the Rust API routes; a static server can display the storefront but cannot run the Rust endpoints.
 
-## Research
+If the API is unreachable on localhost, checkout can save a **browser-local demo order** in `localStorage`. These local preview orders are not sent to Supabase and will not appear in the deployed admin panel. The storefront falls back to a curated sample catalogue if `/api/products` is unavailable.
 
-Public Rapido sources informed the customer/captain distinction, captain accept/reject flow, onboarding review and safety UX:
+## Useful commands
 
-- https://www.rapido.bike/CustomerTerms
-- https://rapido.bike/RapidoSafetyGuidelines.pdf
-- https://play.google.com/store/apps/details?id=com.rapido.rider
-- https://vercel.com/docs/functions/runtimes/go
+```bash
+npm run typecheck
+cargo check
+npm run dev
+npm run deploy
+```
 
-No proprietary Rapido code, assets or internal architecture were used. Research checked 28 October 2026. Transport permissions and launch requirements depend on the service and jurisdiction; obtain a specific launch review before operating.
+## API routes
 
-## Current Supabase integration
+| Route | Method | Purpose |
+|---|---|---|
+| `/api/health` | GET | Health + whether server env vars are present |
+| `/api/products` | GET | Public active product catalogue |
+| `/api/orders` | POST | Validated order creation via the database RPC |
+| `/api/admin/orders` | GET | List recent orders (requires approved admin JWT) |
+| `/api/admin/orders` | PATCH | Change order status (requires approved admin JWT) |
+| `/api/admin/products` | GET | Read inventory (requires approved admin JWT) |
+| `/api/admin/products` | PATCH | Update price, stock, and availability (requires approved admin JWT) |
 
-Project: `https://ppbhckgibiwamftgnjgy.supabase.co`. Public connection values are centralized in `config/connection.json` and generated into web, Go, Android and Vercel defaults by `scripts/sync-connection.py`. The field named `supabaseAnonKey` / `ANON_KEY` is retained for compatibility and contains the supplied `sb_publishable_` key. No privileged key is bundled. See `docs/SUPABASE_SETUP.md` for the remaining steps.
+## Security / production checklist
+
+- Keep all table RLS policies enabled; do not expose any secret/service-role key.
+- Only allow trusted staff UUIDs in `public.admin_users`; secure the Supabase Auth project and turn off public admin sign-up.
+- The current checkout is COD/demo, not a payment integration. For paid orders, add a provider such as Razorpay/Stripe with verified server-side webhooks and idempotency.
+- Add order rate limiting / bot protection before a public launch, and verify your privacy, delivery, cancellation and tax requirements.
+- Product photography and Google Fonts are remote assets; replace with hosted assets for a fully self-contained deployment if desired.

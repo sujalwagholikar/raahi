@@ -1,10 +1,8 @@
-android/.gradle/
-android/local.properties
-android/**/build/
 .env
-*.jks
-*.keystore
-
+.env.local
+.env.*.local
 node_modules/
-
-android/.kotlin/
+target/
+.vercel/
+dist/
+.DS_Store
