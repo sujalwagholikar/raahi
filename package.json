@@ -1,0 +1,12 @@
+{
+  "name": "raahi-mobility",
+  "private": true,
+  "version": "0.1.1",
+  "scripts": {
+    "check": "node --check dist/app.js",
+    "test:database": "node tests/database.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.12"
+  }
+}

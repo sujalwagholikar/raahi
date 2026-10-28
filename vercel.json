@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "buildCommand": "",
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/v1/:path*",
+      "destination": "/api/index.go"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
+      ]
+    }
+  ],
+  "env": {
+    "SUPABASE_URL": "https://ppbhckgibiwamftgnjgy.supabase.co",
+    "SUPABASE_ANON_KEY": "sb_publishable_fEQE4MyRW6Z-9-UeK69MWQ_ONdH6Wv6",
+    "ALLOWED_ORIGINS": "https://raahi-mobility-hub.mirchikadesitadka.chatgpt.site"
+  }
+}
