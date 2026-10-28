@@ -1,8 +1,8 @@
 use serde_json::{json, Value};
-use vercel_runtime::{run, Error, Request};
+use vercel_runtime::{run, service_fn, Error, Request};
 
 #[tokio::main]
-async fn main() -> Result<(), Error> { run(handler).await }
+async fn main() -> Result<(), Error> { run(service_fn(handler)).await }
 
 pub async fn handler(req: Request) -> Result<vercel_runtime::Response<vercel_runtime::ResponseBody>, Error> {
     if req.method() != hyper::Method::POST {

@@ -103,3 +103,9 @@ npm run deploy
 - The current checkout is COD/demo, not a payment integration. For paid orders, add a provider such as Razorpay/Stripe with verified server-side webhooks and idempotency.
 - Add order rate limiting / bot protection before a public launch, and verify your privacy, delivery, cancellation and tax requirements.
 - Product photography and Google Fonts are remote assets; replace with hosted assets for a fully self-contained deployment if desired.
+
+## Vercel Rust runtime fix
+
+The API entry points use `service_fn(handler)` when starting the Vercel Rust runtime. Keep this pattern in every Rust function under `api/` when updating handlers.
+
+Before deploying, set `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` in the Vercel project's Environment Variables. Local `.env.local` files are intentionally not included in this ZIP; use `.env.example` as a reference and do not add service-role keys to frontend code.
